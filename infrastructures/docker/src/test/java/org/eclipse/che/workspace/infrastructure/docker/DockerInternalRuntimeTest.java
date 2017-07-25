@@ -14,17 +14,16 @@ package org.eclipse.che.workspace.infrastructure.docker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
-import org.eclipse.che.api.core.model.workspace.config.MachineConfig;
 import org.eclipse.che.api.core.model.workspace.runtime.MachineStatus;
 import org.eclipse.che.api.core.model.workspace.runtime.RuntimeIdentity;
 import org.eclipse.che.api.core.notification.EventService;
-import org.eclipse.che.api.installer.server.InstallerRegistry;
 import org.eclipse.che.api.installer.server.model.impl.InstallerImpl;
 import org.eclipse.che.api.workspace.server.DtoConverter;
 import org.eclipse.che.api.workspace.server.URLRewriter;
 import org.eclipse.che.api.workspace.server.spi.InfrastructureException;
 import org.eclipse.che.api.workspace.server.spi.InternalMachineConfig;
 import org.eclipse.che.api.workspace.server.spi.RuntimeIdentityImpl;
+import org.eclipse.che.api.workspace.server.spi.RuntimeStartInterruptedException;
 import org.eclipse.che.api.workspace.shared.dto.event.MachineStatusEvent;
 import org.eclipse.che.dto.server.DtoFactory;
 import org.eclipse.che.workspace.infrastructure.docker.bootstrap.DockerBootstrapper;
@@ -37,15 +36,20 @@ import org.eclipse.che.workspace.infrastructure.docker.snapshot.SnapshotDao;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 import org.mockito.testng.MockitoTestNGListener;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Listeners;
 import org.testng.annotations.Test;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
+import static org.eclipse.che.api.core.model.workspace.runtime.MachineStatus.FAILED;
 import static org.eclipse.che.api.core.model.workspace.runtime.MachineStatus.RUNNING;
 import static org.eclipse.che.api.core.model.workspace.runtime.MachineStatus.STARTING;
 import static org.mockito.Matchers.any;
@@ -53,9 +57,11 @@ import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -82,6 +88,8 @@ public class DockerInternalRuntimeTest {
     private EventService              eventService;
     @Mock
     private DockerMachineStarter      starter;
+    @Mock
+    private NetworkLifecycle          networks;
 
     @Captor
     private ArgumentCaptor<MachineStatusEvent> eventCaptor;
@@ -93,21 +101,22 @@ public class DockerInternalRuntimeTest {
         final DockerContainerConfig config1 = new DockerContainerConfig();
         final DockerContainerConfig config2 = new DockerContainerConfig();
         final DockerEnvironment environment = new DockerEnvironment();
-        final InternalMachineConfig machineConfig1 = new InternalMachineConfig(mock(MachineConfig.class),
-                                                                               mock(InstallerRegistry.class));
-        final InternalMachineConfig machineConfig2 = new InternalMachineConfig(mock(MachineConfig.class),
-                                                                               mock(InstallerRegistry.class));
+        final InternalMachineConfig internalMachineCfg1 = mock(InternalMachineConfig.class);
+        when(internalMachineCfg1.getInstallers()).thenReturn(singletonList(newInstaller(1)));
+        final InternalMachineConfig internalMachineCfg2 = mock(InternalMachineConfig.class);
+        when(internalMachineCfg2.getInstallers()).thenReturn(singletonList(newInstaller(2)));
         environment.setContainers(ImmutableMap.of(DEV_MACHINE, config1, DB_MACHINE, config2));
 
+        doNothing().when(networks).createNetwork(anyString());
         when(runtimeContext.getIdentity()).thenReturn(IDENTITY);
         when(runtimeContext.getDevMachineName()).thenReturn(DB_MACHINE);
         when(runtimeContext.getDockerEnvironment()).thenReturn(environment);
         when(runtimeContext.getOrderedContainers()).thenReturn(ImmutableList.of(DEV_MACHINE, DB_MACHINE));
-        when(runtimeContext.getMachineConfigs()).thenReturn(ImmutableMap.of(DEV_MACHINE, machineConfig1,
-                                                                            DB_MACHINE, machineConfig2));
+        when(runtimeContext.getMachineConfigs()).thenReturn(ImmutableMap.of(DEV_MACHINE, internalMachineCfg1,
+                                                                            DB_MACHINE, internalMachineCfg2));
         dockerRuntime = new DockerInternalRuntime(runtimeContext,
                                                   mock(URLRewriter.class),
-                                                  mock(NetworkLifecycle.class),
+                                                  networks,
                                                   starter,
                                                   mock(SnapshotDao.class),
                                                   mock(DockerRegistryClient.class),
@@ -134,7 +143,7 @@ public class DockerInternalRuntimeTest {
     @Test(expectedExceptions = InfrastructureException.class)
     public void throwsExceptionWhenOneMachineStartFailed() throws Exception {
         mockInstallersBootstrap();
-        mockContainerStartFailed();
+        mockContainerStartFailed(new InfrastructureException("container start failed"));
 
         dockerRuntime.start(emptyMap());
 
@@ -145,7 +154,7 @@ public class DockerInternalRuntimeTest {
 
     @Test(expectedExceptions = InfrastructureException.class)
     public void throwsExceptionWhenBootstrappingOfInstallersFailed() throws Exception {
-        mockInstallersBootstrapFailed();
+        mockInstallersBootstrapFailed(new InfrastructureException("bootstrap failed"));
         mockContainerStart();
 
         dockerRuntime.start(emptyMap());
@@ -153,6 +162,52 @@ public class DockerInternalRuntimeTest {
         verify(starter, times(1)).startContainer(anyString(), anyString(), any(), any(), anyBoolean(), any());
         verify(eventService, times(1)).publish(any(MachineStatusEvent.class));
         verifyEventsOrder(newEvent(DEV_MACHINE, STARTING, null));
+    }
+
+    @Test(expectedExceptions = RuntimeStartInterruptedException.class)
+    public void throwsInterruptionExceptionWhenNetworkCreationInterrupted() throws Exception {
+        doThrow(RuntimeStartInterruptedException.class).when(networks).createNetwork(anyString());
+
+        try {
+            dockerRuntime.start(emptyMap());
+        } catch (InfrastructureException rethrow) {
+            verify(starter, never()).startContainer(anyString(), anyString(), any(), any(), anyBoolean(), any());
+            throw rethrow;
+        }
+    }
+
+    @Test(expectedExceptions = RuntimeStartInterruptedException.class)
+    public void throwsInterruptionExceptionWhenContainerStartInterrupted() throws Exception {
+        mockInstallersBootstrap();
+        mockContainerStartFailed(new RuntimeStartInterruptedException(IDENTITY));
+
+        try {
+            dockerRuntime.start(emptyMap());
+        } catch (InfrastructureException rethrow) {
+            verify(starter, times(1)).startContainer(anyString(), anyString(), any(), any(), anyBoolean(), any());
+            throw rethrow;
+        }
+    }
+
+    @Test(expectedExceptions = RuntimeStartInterruptedException.class)
+    public void throwsInterruptionExceptionWhenThreadInterruptedOnStarFailedBeforeDestroying() throws Exception {
+        mockInstallersBootstrap();
+        final String errorMsg = "container start failed";
+        doAnswer(invocationOnMock -> {
+            Thread.currentThread().interrupt();
+            throw new InfrastructureException(errorMsg);
+        }).when(starter).startContainer(anyString(),
+                                       anyString(),
+                                       any(DockerContainerConfig.class),
+                                       any(RuntimeIdentity.class),
+                                       anyBoolean(),
+                                       any(AbnormalMachineStopHandler.class));
+        try {
+            dockerRuntime.start(emptyMap());
+        } catch (InfrastructureException rethrow) {
+            verify(starter, times(1)).startContainer(anyString(), anyString(), any(), any(), anyBoolean(), any());
+            throw rethrow;
+        }
     }
 
     private void verifyEventsOrder(MachineStatusEvent... expectedEvents) {
@@ -193,14 +248,14 @@ public class DockerInternalRuntimeTest {
                                     any(AbnormalMachineStopHandler.class))).thenReturn(mock(DockerMachine.class));
     }
 
-    private void mockContainerStartFailed() throws InfrastructureException {
+    private void mockContainerStartFailed(InfrastructureException exception) throws InfrastructureException {
         when(starter.startContainer(anyString(),
                                     anyString(),
                                     any(DockerContainerConfig.class),
                                     any(RuntimeIdentity.class),
                                     anyBoolean(),
                                     any(AbnormalMachineStopHandler.class)))
-                .thenThrow(new InfrastructureException("container start failed"));
+                .thenThrow(exception);
     }
 
     private void mockInstallersBootstrap() throws InfrastructureException {
@@ -212,13 +267,24 @@ public class DockerInternalRuntimeTest {
         doNothing().when(bootstrapper).bootstrap();
     }
 
-    private void mockInstallersBootstrapFailed() throws InfrastructureException {
+    private void mockInstallersBootstrapFailed(InfrastructureException exception) throws InfrastructureException {
         final DockerBootstrapper bootstrapper = mock(DockerBootstrapper.class);
         when(bootstrapperFactory.create(anyString(),
                                         any(RuntimeIdentity.class),
                                         anyListOf(InstallerImpl.class),
                                         any(DockerMachine.class))).thenReturn(bootstrapper);
-        doThrow(InfrastructureException.class).when(bootstrapper).bootstrap();
+        doThrow(exception).when(bootstrapper).bootstrap();
+    }
+
+    private InstallerImpl newInstaller(int i) {
+        return new InstallerImpl("installer_" + i,
+                                 "installer_name" + i,
+                                 String.valueOf(i),
+                                 "test installer",
+                                 Collections.emptyList(),
+                                 emptyMap(),
+                                 "echo hello",
+                                 emptyMap());
     }
 
 }
