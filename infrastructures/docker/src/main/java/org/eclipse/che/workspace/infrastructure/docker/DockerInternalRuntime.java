@@ -10,7 +10,6 @@
  *******************************************************************************/
 package org.eclipse.che.workspace.infrastructure.docker;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.inject.assistedinject.Assisted;
 import com.google.inject.assistedinject.AssistedInject;
 
