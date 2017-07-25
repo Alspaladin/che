@@ -19,7 +19,6 @@ import org.eclipse.che.api.core.model.workspace.runtime.Server;
 import org.eclipse.che.api.workspace.server.URLRewriter;
 import org.eclipse.che.api.workspace.server.model.impl.MachineImpl;
 import org.eclipse.che.api.workspace.server.model.impl.ServerImpl;
-import org.slf4j.Logger;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -29,7 +28,6 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static java.util.stream.Collectors.toMap;
-import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * Implementation of concrete Runtime
@@ -38,18 +36,14 @@ import static org.slf4j.LoggerFactory.getLogger;
  */
 public abstract class InternalRuntime <T extends RuntimeContext> implements Runtime {
 
-    private static final Logger LOG = getLogger(InternalRuntime.class);
-
-    private final T             context;
-    private final URLRewriter   urlRewriter;
-    private final List<Warning> warnings;
-
-    private WorkspaceStatus status;
+    private final T                    context;
+    private final URLRewriter          urlRewriter;
+    private final List<Warning>        warnings = new CopyOnWriteArrayList<>();
+    private       WorkspaceStatus      status;
 
     public InternalRuntime(T context, URLRewriter urlRewriter, boolean running) {
         this.context = context;
         this.urlRewriter = urlRewriter != null ? urlRewriter : new URLRewriter.NoOpURLRewriter();
-        this.warnings = new CopyOnWriteArrayList<>();
         if (running) {
             status = WorkspaceStatus.RUNNING;
         }

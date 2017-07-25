@@ -40,7 +40,6 @@ import org.eclipse.che.ide.api.command.CommandTypeRegistry;
 import org.eclipse.che.ide.api.dialogs.ConfirmCallback;
 import org.eclipse.che.ide.api.dialogs.DialogFactory;
 import org.eclipse.che.ide.api.machine.ExecAgentCommandManager;
-import org.eclipse.che.ide.command.toolbar.processes.ActivateProcessOutputEvent;
 import org.eclipse.che.ide.api.machine.events.ExecAgentServerRunningEvent;
 import org.eclipse.che.ide.api.machine.events.MachineRunningEvent;
 import org.eclipse.che.ide.api.machine.events.MachineStartingEvent;
@@ -58,12 +57,13 @@ import org.eclipse.che.ide.api.parts.base.BasePresenter;
 import org.eclipse.che.ide.api.selection.Selection;
 import org.eclipse.che.ide.api.ssh.SshServiceClient;
 import org.eclipse.che.ide.api.workspace.event.EnvironmentOutputEvent;
-import org.eclipse.che.ide.api.workspace.event.WorkspaceStartedEvent;
+import org.eclipse.che.ide.api.workspace.event.WorkspaceRunningEvent;
 import org.eclipse.che.ide.api.workspace.event.WorkspaceStoppedEvent;
 import org.eclipse.che.ide.api.workspace.model.MachineImpl;
 import org.eclipse.che.ide.api.workspace.model.RuntimeImpl;
 import org.eclipse.che.ide.api.workspace.model.WorkspaceImpl;
 import org.eclipse.che.ide.bootstrap.BasicIDEInitializedEvent;
+import org.eclipse.che.ide.command.toolbar.processes.ActivateProcessOutputEvent;
 import org.eclipse.che.ide.command.toolbar.processes.ProcessOutputClosedEvent;
 import org.eclipse.che.ide.console.CommandConsoleFactory;
 import org.eclipse.che.ide.console.CommandOutputConsole;
@@ -108,7 +108,7 @@ import static org.eclipse.che.ide.processes.ProcessTreeNode.ProcessNodeType.TERM
 public class ProcessesPanelPresenter extends BasePresenter implements ProcessesPanelView.ActionDelegate,
                                                                       ProcessFinishedEvent.Handler,
                                                                       OutputConsole.ActionDelegate,
-                                                                      WorkspaceStartedEvent.Handler,
+                                                                      WorkspaceRunningEvent.Handler,
                                                                       WorkspaceStoppedEvent.Handler,
                                                                       MachineStartingEvent.Handler,
                                                                       MachineRunningEvent.Handler,
@@ -192,7 +192,7 @@ public class ProcessesPanelPresenter extends BasePresenter implements ProcessesP
         view.setDelegate(this);
 
         eventBus.addHandler(ProcessFinishedEvent.TYPE, this);
-        eventBus.addHandler(WorkspaceStartedEvent.TYPE, this);
+        eventBus.addHandler(WorkspaceRunningEvent.TYPE, this);
         eventBus.addHandler(WorkspaceStoppedEvent.TYPE, this);
         eventBus.addHandler(MachineStartingEvent.TYPE, this);
         eventBus.addHandler(MachineRunningEvent.TYPE, this);
@@ -355,7 +355,7 @@ public class ProcessesPanelPresenter extends BasePresenter implements ProcessesP
         }
 
         for (ProcessTreeNode processTreeNode : machineNodes.values()) {
-            if (processTreeNode.getData() instanceof MachineImpl) {
+            if (processTreeNode.getType() == MACHINE_NODE) {
                 String machineName = (String)processTreeNode.getData();
 
                 if (machineName.equals(devMachine.get().getName())) {
@@ -920,7 +920,7 @@ public class ProcessesPanelPresenter extends BasePresenter implements ProcessesP
     }
 
     @Override
-    public void onWorkspaceStarted(WorkspaceStartedEvent event) {
+    public void onWorkspaceRunning(WorkspaceRunningEvent event) {
         List<MachineImpl> wsMachines = getMachines();
         if (wsMachines.isEmpty()) {
             return;
@@ -1280,33 +1280,18 @@ public class ProcessesPanelPresenter extends BasePresenter implements ProcessesP
 
     @Override
     public void onDownloadWorkspaceOutput(DownloadWorkspaceOutputEvent event) {
-        // TODO (spi ide)
-//        MachineImpl devMachine = null;
-//
-//        for (ProcessTreeNode machineNode : machineNodes.values()) {
-//            if (!(machineNode.getData() instanceof MachineImpl)) {
-//                continue;
-//            }
-//
-//            MachineImpl machine = (MachineImpl)machineNode.getData();
-//
-//            if (!machine.getServerByName(WSAGENT_REFERENCE).isPresent()) {
-//                continue;
-//            }
-//
-//            devMachine = machine;
-//            break;
-//        }
-//
-//        if (devMachine == null) {
-//            return;
-//        }
-//
-//        String fileName = appContext.getWorkspace().getNamespace() + "-" + appContext.getWorkspace().getConfig().getName() +
-//                          " " + DateTimeFormat.getFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) +
-//                          ".log";
-//
-//        download(fileName, getText(devMachine.getName()));
+        WorkspaceImpl workspace = appContext.getWorkspace();
+        Optional<MachineImpl> devMachine = workspace.getDevMachine();
+
+        if (!devMachine.isPresent()) {
+            return;
+        }
+
+        String fileName = workspace.getNamespace() + "-" + workspace.getConfig().getName() +
+                          " " + DateTimeFormat.getFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) +
+                          ".log";
+
+        download(fileName, getText(devMachine.get().getName()));
     }
 
     @Override
