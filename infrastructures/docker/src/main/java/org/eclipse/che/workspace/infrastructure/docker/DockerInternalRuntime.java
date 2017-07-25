@@ -10,6 +10,7 @@
  *******************************************************************************/
 package org.eclipse.che.workspace.infrastructure.docker;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.inject.assistedinject.Assisted;
 import com.google.inject.assistedinject.AssistedInject;
 
@@ -58,6 +59,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
 import static java.lang.String.format;
+import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toMap;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -200,7 +202,7 @@ public class DockerInternalRuntime extends InternalRuntime<DockerRuntimeContext>
             // when start failed and thread interrupted then runtime must be destroyed
             boolean interrupted = Thread.interrupted();
             try {
-                destroyRuntime(null);
+                destroyRuntime(emptyMap());
             } catch (Exception destExc) {
                 LOG.error(destExc.getLocalizedMessage(), destExc);
             }
@@ -490,7 +492,7 @@ public class DockerInternalRuntime extends InternalRuntime<DockerRuntimeContext>
         @Override
         public void handle(String error) {
             try {
-                internalStop(Collections.emptyMap());
+                internalStop(emptyMap());
             } catch (InfrastructureException e) {
                 LOG.error(e.getLocalizedMessage(), e);
             } finally {
@@ -548,7 +550,7 @@ public class DockerInternalRuntime extends InternalRuntime<DockerRuntimeContext>
         }
 
         public synchronized Map<String, ? extends DockerMachine> getMachines() {
-            return machines != null ? machines : Collections.emptyMap();
+            return machines != null ? machines : emptyMap();
         }
 
         public synchronized void addMachine(String name, DockerMachine machine) throws InternalInfrastructureException {

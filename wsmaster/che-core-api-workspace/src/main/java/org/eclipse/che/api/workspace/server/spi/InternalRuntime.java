@@ -124,14 +124,15 @@ public abstract class InternalRuntime <T extends RuntimeContext> implements Runt
     protected abstract void internalStart(Map<String, String> startOptions) throws InfrastructureException;
 
     /**
-     * Stops Runtime
-     * Presumably can take some time so considered to launch in separate thread
+     * Stops Runtime.
+     * Presumably can take some time so considered to launch in separate thread.
      * <p>Runtime will be stopped only if its state {@link WorkspaceStatus#RUNNING} or {@link WorkspaceStatus#STARTING}.
-     * When runtime state is {@link WorkspaceStatus#STARTING} then process of start must be cancelled
-     * and all the resources must be released.
-     * When runtime state is {@link WorkspaceStatus#RUNNING} then runtime must be normally stopped
-     * and  all the resources must be released.
-     *
+     * <ul>
+     * <li>When runtime state is {@link WorkspaceStatus#STARTING} then process of start must be cancelled
+     * and all the resources must be released.</li>
+     * <li>When runtime state is {@link WorkspaceStatus#RUNNING} then runtime must be normally stopped
+     * and  all the resources must be released.</li>
+     *</ul>
      * @param stopOptions
      *         options of workspace that may used in environment stop
      * @throws StateException
