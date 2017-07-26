@@ -296,6 +296,10 @@ class IdeSvc {
     }
     defer.promise.then(() => {
       // update list of recent workspaces
+      console.log('workspace', workspace);
+      if (this.lodash.get(workspace, 'runtime.machines.0.runtime.envVariables.RIDE_WD')) {
+        (this.$rootScope as any).ideIframeLink = this.lodash.get(workspace, 'runtime.machines.0.runtime.servers.8888/tcp.address');
+      }
       this.cheWorkspace.fetchWorkspaces();
     });
   }
