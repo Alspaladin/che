@@ -10,10 +10,14 @@
  *******************************************************************************/
 package org.eclipse.che.ide.part.explorer.project;
 
-import com.google.common.base.Optional;
+import com.google.gwt.dom.client.AnchorElement;
+import com.google.gwt.dom.client.DivElement;
+import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.event.dom.client.ClickHandler;
+import com.google.gwt.user.client.Event;
+import com.google.gwt.user.client.ui.Anchor;
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
@@ -29,14 +33,13 @@ import org.eclipse.che.ide.api.data.tree.HasAction;
 import org.eclipse.che.ide.api.data.tree.HasAttributes;
 import org.eclipse.che.ide.api.data.tree.Node;
 import org.eclipse.che.ide.api.data.tree.NodeInterceptor;
-import org.eclipse.che.ide.api.data.tree.settings.HasSettings;
 import org.eclipse.che.ide.api.parts.PerspectiveManager;
 import org.eclipse.che.ide.api.parts.base.BaseView;
 import org.eclipse.che.ide.api.parts.base.ToolButton;
 import org.eclipse.che.ide.api.resources.Container;
 import org.eclipse.che.ide.api.resources.Project;
 import org.eclipse.che.ide.api.resources.Resource;
-import org.eclipse.che.ide.api.vcs.VcsBranchProvider;
+import org.eclipse.che.ide.api.theme.Style;
 import org.eclipse.che.ide.menu.ContextMenu;
 import org.eclipse.che.ide.project.node.SyntheticNode;
 import org.eclipse.che.ide.resources.tree.ContainerNode;
@@ -357,7 +360,18 @@ public class ProjectExplorerViewImpl extends BaseView<ProjectExplorerView.Action
                 if (container instanceof Project) {
                     String branch = container.getProject().getAttribute("git.current.branch.name");
                     if (branch != null) {
-                        ((ContainerNode)node).getPresentation(true).setInfoText("(" + branch + ")");
+                        Element nodeContainer = element.getFirstChildElement();
+                        Element link = new Anchor("(" + branch + ")").getElement();
+                        link.getStyle().setColor(Style.getOutputLinkColor());
+                        DivElement divElement = Document.get().createDivElement();
+                        divElement.setClassName(treeStyles.styles().vcsBranchContainer());
+                        divElement.appendChild(link);
+                        nodeContainer.insertBefore(divElement, nodeContainer.getLastChild());
+
+
+                        //Add check-box click handler.
+                        Event.sinkEvents(link, Event.ONCLICK);
+                        Event.setEventListener(link, event -> delegate.onVcsBranchClicked((Project)container));
                     }
                 }
             }

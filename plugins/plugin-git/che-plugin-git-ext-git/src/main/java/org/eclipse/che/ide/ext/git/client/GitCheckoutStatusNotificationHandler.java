@@ -1,4 +1,4 @@
-    /*******************************************************************************
+/*******************************************************************************
  * Copyright (c) 2012-2017 Codenvy, S.A.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
@@ -15,6 +15,11 @@ import org.eclipse.che.api.core.jsonrpc.commons.RequestHandlerConfigurator;
 import org.eclipse.che.api.project.shared.dto.event.GitCheckoutEventDto;
 import org.eclipse.che.api.project.shared.dto.event.GitCheckoutEventDto.Type;
 import org.eclipse.che.ide.api.notification.NotificationManager;
+import org.eclipse.che.ide.api.resources.Container;
+import org.eclipse.che.ide.api.resources.Project;
+import org.eclipse.che.ide.part.explorer.project.ProjectExplorerPresenter;
+import org.eclipse.che.ide.resources.tree.ContainerNode;
+import org.eclipse.che.ide.ui.smartTree.Tree;
 import org.eclipse.che.ide.util.loging.Log;
 
 import javax.inject.Inject;
@@ -33,11 +38,14 @@ import static org.eclipse.che.ide.api.notification.StatusNotification.Status.SUC
 @Singleton
 public class GitCheckoutStatusNotificationHandler {
     private final Provider<NotificationManager> notificationManagerProvider;
+    private final Provider<ProjectExplorerPresenter> projectExplorerPresenterProvider;
 
     @Inject
     public GitCheckoutStatusNotificationHandler(Provider<NotificationManager> notificationManagerProvider,
+                                                Provider<ProjectExplorerPresenter> projectExplorerPresenterProvider,
                                                 RequestHandlerConfigurator configurator) {
         this.notificationManagerProvider = notificationManagerProvider;
+        this.projectExplorerPresenterProvider = projectExplorerPresenterProvider;
 
         configureHandler(configurator);
     }
@@ -76,5 +84,15 @@ public class GitCheckoutStatusNotificationHandler {
                 break;
             }
         }
+
+        Tree tree = projectExplorerPresenterProvider.get().getTree();
+        tree.getNodeStorage().getAll().forEach(node -> {
+            if (node instanceof ContainerNode) {
+                Container container = ((ContainerNode)node).getData();
+                if (container instanceof Project) {
+                    tree.refresh(node);
+                }
+            }
+        });
     }
 }
