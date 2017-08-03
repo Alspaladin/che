@@ -294,10 +294,10 @@
             }
           },
           "recipe": {
+            "content": "services:\n  dev-machine:\n    image: 'typefox/ride-ws:codenvy-0.4.4'\n    environment:\n      RIDE: 'ride'\n",
             "contentType": "application/x-yaml",
-            "type": "compose",
-            "content": "services:\n  dev-machine:\n    image: 'typefox/ride-ws:codenvy-0.4.4'\n    environment:\n      RIDE: 'ride'\n"
-          },
+            "type": "compose"
+          }
         }
       },
       "name": "default",
