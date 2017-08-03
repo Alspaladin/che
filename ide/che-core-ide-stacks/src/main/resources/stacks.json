@@ -262,6 +262,54 @@
     }
   },
   {
+    "id": "ride",
+    "creator": "Alspaladin",
+    "name": "RIDE",
+    "description": "RIDE IDE Stack.",
+    "scope": "general",
+    "tags": [
+      "RIDE",
+      "Ubuntu",
+      "Python",
+      "R",
+      "Jupyterlab"
+    ],
+    "components": [],
+    "source": {
+      "type": "image",
+      "origin": "typefox/ride-ws:codenvy-0.4.4"
+    },
+    "workspaceConfig": {
+      "environments": {
+        "default": {
+          "machines": {
+            "dev-machine": {
+              "agents": [
+                "org.eclipse.che.exec", "org.eclipse.che.terminal", "org.eclipse.che.ws-agent", "org.eclipse.che.ssh"
+              ],
+              "servers": {},
+              "attributes" : {
+                "memoryLimitBytes": "2147483648"
+              }
+            }
+          },
+          "recipe": {
+            "contentType": "application/x-yaml",
+            "type": "compose",
+            "content": "services:\n  dev-machine:\n    image: 'typefox/ride-ws:codenvy-0.4.4'\n    environment:\n      RIDE: 'ride'\n"
+          },
+        }
+      },
+      "name": "default",
+      "defaultEnv": "default",
+      "description": null
+    },
+    "stackIcon": {
+      "name": "type-blank.svg",
+      "mediaType": "image/svg+xml"
+    }
+  },
+  {
     "id": "android-default",
     "creator": "ide",
     "name": "Android",
